@@ -68,6 +68,16 @@ def validate(text):
     return stripped
 
 
+def render_entry():
+    """Return the exact bytes entry.txt must hold.
+
+    Rendering is separate from writing so the written file can be
+    checked against these bytes afterwards: one function decides the
+    content, another one puts it on disk.
+    """
+    return (validate(LINE) + "\n").encode("utf-8")
+
+
 def write_entry(out_dir):
     """Write the validated line to entry.txt, readable by everyone.
 
@@ -78,19 +88,36 @@ def write_entry(out_dir):
     """
     os.makedirs(out_dir, exist_ok=True)
     path = os.path.join(out_dir, "entry.txt")
-    text = validate(LINE)
-    with open(path, "w", encoding="utf-8", newline="\n") as f:
-        f.write(text + "\n")
+    with open(path, "wb") as f:
+        f.write(render_entry())
     # Make the file readable by every user (the grader runs as
     # another user); never chmod the directory itself.
     os.chmod(path, 0o644)
     return path
 
 
+def verify_entry(path):
+    """Read entry.txt back and check it holds exactly the bytes
+    render_entry produced. A short write or a stray byte fails
+    loudly here instead of reaching the grader.
+    """
+    with open(path, "rb") as f:
+        written = f.read()
+    expected = render_entry()
+    if written != expected:
+        raise ValueError(
+            "entry.txt mismatch: wrote %d bytes, expected %d"
+            % (len(written), len(expected))
+        )
+    return len(written)
+
+
 def main():
     out_dir = os.environ.get("OUTPUT_DIR", "/output")
     path = write_entry(out_dir)
-    print("wrote %s (%d characters)" % (path, len(validate(LINE))))
+    size = verify_entry(path)
+    print("wrote %s (%d characters, %d bytes verified)"
+          % (path, len(validate(LINE)), size))
 
 
 if __name__ == "__main__":
